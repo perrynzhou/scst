@@ -83,8 +83,10 @@ int qla_nvme_register_remote(struct scsi_qla_host *vha, struct fc_port *fcport)
 		return ret;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
 	nvme_fc_set_remoteport_devloss(fcport->nvme_remote_port,
 				       fcport->dev_loss_tmo);
+#endif
 
 	if (fcport->nvme_prli_service_param & NVME_PRLI_SP_SLER)
 		ql_log(ql_log_info, vha, 0x212a,
