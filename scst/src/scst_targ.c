@@ -3664,11 +3664,9 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 		/*
 		 * Those counters protect from not getting too long processing
 		 * latency, so we should decrement them after cmd completed.
+		 *
+		 * @cmd processing for SCST device is complete.
 		 */
-		smp_mb__before_atomic_dec();
-		WARN_ON_ONCE(!cmd->owns_refcnt);
-		cmd->owns_refcnt = false;
-		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
 		percpu_ref_put(&cmd->dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		atomic_dec(&cmd->dev->dev_cmd_count);
@@ -3857,8 +3855,6 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	WARN_ON_ONCE(cmd->owns_refcnt);
-
 	if (unlikely(cmd->delivery_status != SCST_CMD_DELIVERY_SUCCESS)) {
 		if ((cmd->tgt_dev != NULL) &&
 		    (cmd->status == SAM_STAT_CHECK_CONDITION) &&
@@ -3873,6 +3869,19 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 			}
 			scst_requeue_ua(cmd, NULL, 0);
 		}
+	}
+
+	if (likely(cmd->tgt_dev != NULL)) {
+		/*
+		 * We must decrement @tgt_dev->tgt_dev_cmd_count
+		 * after scst_tgt_cmd_done() was called.
+		 *
+		 * @cmd processing for target device is complete.
+		 */
+		smp_mb__before_atomic_dec();
+		WARN_ON_ONCE(!cmd->owns_refcnt);
+		cmd->owns_refcnt = false;
+		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
 	}
 
 	atomic_dec(&sess->sess_cmd_count);
